@@ -1,0 +1,10 @@
+﻿.venv/
+__pycache__/
+*.pyc
+*.db
+*.db-journal
+.env
+.env.*
+invosight_preferences.json
+requirements_local.txt
+final_model_DOUNT/

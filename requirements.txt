@@ -1,0 +1,8 @@
+streamlit==1.64.0
+torch==2.14.0
+transformers==5.16.1
+pillow==12.3.0
+pytesseract==0.3.13
+reportlab==5.0.1
+sentencepiece==0.2.2
+safetensors==0.8.0
