@@ -201,7 +201,7 @@ def _save_verification(conn, invoice_id, original, final, validation,
 
 def save_invoice(*, final_fields, original_fields, validation,
                  modified, image_file, image_bytes, model=APP_MODEL):
-    """Write the nine extracted values to Colab's original invoices table."""
+    """Write the extracted values to Colab's original invoices table."""
     ensure_schema()
     if not isinstance(final_fields, dict) or not isinstance(original_fields, dict):
         raise ValueError("Original and final fields must be dictionaries.")
@@ -267,7 +267,7 @@ def save_invoice(*, final_fields, original_fields, validation,
 
 
 def dashboard_stats(model=APP_MODEL):
-    """Counts only; the original nine fields do not establish amount units."""
+    """Counts only; the original fields do not establish amount units."""
     ensure_schema()
     where = " WHERE i.model=?" if model is not None else ""
     params = (model,) if model is not None else ()
@@ -331,10 +331,10 @@ def delete_all_invoices(model=None):
 
 
 def update_invoice_fields(invoice_id, updated_fields):
-    """Edit nine stored values; affected checks must be reviewed again."""
+    """Edit stored values; affected checks must be reviewed again."""
     ensure_schema()
     if not isinstance(updated_fields, dict) or set(updated_fields) != set(FIELDS):
-        raise ValueError("All nine invoice fields are required.")
+        raise ValueError("All invoice fields are required.")
     cleaned = {key: clean_text(updated_fields[key]) for key in FIELDS}
     if not cleaned["invoice_number"]:
         raise ValueError("Invoice Number cannot be empty.")
@@ -435,7 +435,7 @@ def _show(value):
 
 
 def render_database_page():
-    """Browse, edit and delete invoices; show only nine fields and their checks."""
+    """Browse, edit and delete invoices; show only fields and their checks."""
     import streamlit as st
     from html import escape as html_escape
 
@@ -489,7 +489,7 @@ def render_database_page():
         st.markdown(''.join(parts), unsafe_allow_html=True)
 
     st.title("Database")
-    st.caption("Nine extracted invoice fields and their validation results.")
+    st.caption("Extracted invoice fields and their validation results.")
     if st.session_state.pop("database_updated_notice", False):
         st.success("Invoice changes saved. Updated fields require review.")
     if st.session_state.pop("database_deleted_notice", False):
