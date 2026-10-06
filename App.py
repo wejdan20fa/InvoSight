@@ -1560,7 +1560,7 @@ if page == "Dashboard":
     elif 12 <= hour < 17:
         greeting, emoji = "Good afternoon", "🌤️"
     elif 17 <= hour < 24:
-        greeting, emoji = "Good evening", "🌙"
+        greeting, emoji = "Good morning", "☀️"
     else:
      greeting, emoji = "Good night", "🌙"
     render_html('<div class="page-hero"><div style="font-size:30px;font-weight:750;color:#173D7B;">' + greeting +
