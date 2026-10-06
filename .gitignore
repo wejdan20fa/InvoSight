@@ -8,4 +8,3 @@ __pycache__/
 .env.*
 invosight_preferences.json
 requirements_local.txt
-
