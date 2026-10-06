@@ -1560,9 +1560,9 @@ if page == "Dashboard":
     elif 12 <= hour < 17:
         greeting, emoji = "Good afternoon", "🌤️"
     elif 17 <= hour < 24:
-        greeting, emoji = "Good morning", "☀️"
+        greeting, emoji = "Good evening", "🌙"
     else:
-     greeting, emoji =  "Good morning", "☀️"
+     greeting, emoji = "Good night", "🌙"
     render_html('<div class="page-hero"><div style="font-size:30px;font-weight:750;color:#173D7B;">' + greeting +
                  emoji + '<h1>From Invoices to <span class="insight-accent">Insights</span></h1><p>Clear invoice data. Reliable verification. Better financial visibility.</p></div>',
                 unsafe_allow_html=True)
