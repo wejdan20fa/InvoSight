@@ -11,8 +11,7 @@ from Database import connection
 import streamlit as st
 from report_generator import build_verification_report
 from Dount_backend import extract_invoice
-import Database
-st.write("DB TEST:", Database.get_session_db_path())
+
 from Database import (
     dashboard_stats,
     list_invoices,
