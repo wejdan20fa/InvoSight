@@ -6,3 +6,4 @@ pytesseract==0.3.13
 reportlab==5.0.1
 sentencepiece==0.2.2
 safetensors==0.8.0
+streamlit-cookies-manager-v2==0.3.1
