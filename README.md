@@ -8,7 +8,9 @@
 
 *Turning invoice documents into structured information, clear validation results, and review-ready records.*
 
-[Live Demo](https://invosight.streamlit.app/) · [GitHub Repository](https://github.com/wejdan20fa/InvoSight)
+🚀 **[Try InvoSight — Click Here](https://invosight.streamlit.app/)**
+
+[GitHub Repository](https://github.com/wejdan20fa/InvoSight)
 
 </div>
 
@@ -16,15 +18,19 @@
 
 ## 📌 Overview
 
-**InvoSight** is an end-to-end AI-powered invoice processing and verification system. It extracts key information directly from invoice images, validates the extracted values, checks financial calculations, highlights fields that require review, allows users to correct values when needed, and stores the final records for future access.
+**InvoSight** is an end-to-end AI-powered invoice processing and verification system designed to make invoice review more structured, efficient, and transparent.
 
-The system brings the full workflow into one interface: **upload → extract → validate → review & edit → take action**. After validation, users can **save the invoice to the database, generate a verification report, or export the extracted data as JSON**.
+The system extracts key information directly from invoice images using a fine-tuned **Donut deep learning model**, validates the extracted values using independent OCR evidence and financial rules, highlights fields that require attention, allows users to review and correct values when needed, and stores the final records for future access.
 
-<p align="center">
-  <img src="InvoSight_Assets/project-overview.png" alt="InvoSight project overview showing the problem, solution, workflow, validation, dashboard, and technologies" width="95%">
-</p>
+The complete workflow is handled in one interface:
 
-*Figure 1. InvoSight project overview and end-to-end workflow.*
+**Upload → Extract → Validate → Review & Edit → Take Action**
+
+After validation, the user can choose one of three actions:
+
+- **Save to Database**
+- **Generate Verification Report**
+- **Export JSON**
 
 ---
 
@@ -32,15 +38,17 @@ The system brings the full workflow into one interface: **upload → extract →
 
 ### Interactive Dashboard — From Invoice to Insight
 
-The **InvoSight Dashboard** provides one workspace for invoice processing. Users can upload an invoice image, view the original document, extract structured fields with the AI model, inspect field-level validation results, review or edit values, and choose the next action after verification.
+The **InvoSight Dashboard** brings the complete invoice-processing workflow into one interactive workspace.
 
-The summary cards provide a quick view of saved, validated, review-required, and modified invoice records, while the invoice viewer, extracted information panel, and validation summary keep the document and its results visible together.
+Users can upload an invoice image, view the original document, extract structured information with the AI model, inspect field-level validation results, review or edit extracted values, and choose the next action after verification.
+
+The dashboard also includes summary cards for saved invoices, validated records, invoices requiring review, and modified invoices, while keeping the invoice viewer, extracted information, and validation summary visible together.
 
 <p align="center">
-  <img src="InvoSight_Assets/dashboard-preview.png" alt="InvoSight dashboard with invoice viewer, extracted fields, validation summary, and record statistics" width="95%">
+  <img src="InvoSight_Assets/dashboard-preview.png" alt="InvoSight dashboard showing invoice viewer, extracted information, validation summary, and record statistics" width="95%">
 </p>
 
-*Figure 2. The main InvoSight dashboard.*
+*Figure 1. The main InvoSight dashboard.*
 
 ---
 
@@ -48,15 +56,29 @@ The summary cards provide a quick view of saved, validated, review-required, and
 
 ### The Challenge
 
-Invoice processing involves more than entering text into a system. Financial teams often need to locate important invoice fields, enter or review them manually, check whether the extracted values match the source document, verify financial calculations, identify discrepancies, correct errors, and keep a record of the final result.
+Invoice processing is more than simply reading or entering text.
 
-When this process is repeated across a large number of invoices, manual review becomes **time-consuming, repetitive, and prone to human error**, which can slow down financial workflows and make inconsistencies harder to identify.
+Financial teams often need to:
+
+- Identify important invoice fields.
+- Enter or review invoice information manually.
+- Verify that extracted values match the original invoice.
+- Check financial relationships and calculations.
+- Detect missing, suspicious, or inconsistent values.
+- Correct errors when necessary.
+- Keep a clear record of the final reviewed result.
+
+When this process is repeated across a large number of invoices, manual review becomes **time-consuming, repetitive, and prone to human error**. This can slow financial workflows and make discrepancies harder to identify consistently.
 
 ### Our Solution
 
-**InvoSight** combines AI-based extraction, independent document evidence, financial validation, human review, and record management in one workflow.
+**InvoSight** combines deep learning-based document extraction, independent OCR evidence, financial validation, human review, and structured record management in one system.
 
-The system extracts structured information directly from invoice images using a fine-tuned **Donut** model. It then applies validation rules and OCR-based evidence to identify incorrect, suspicious, missing, or insufficiently verified values before the final result is saved.
+The invoice image is first processed by a fine-tuned **Donut model**, which extracts the required invoice information directly from the document image.
+
+The extracted values are then passed to the validation layer, where **Tesseract OCR is used as an independent source of textual evidence from the original invoice image**. This evidence is compared with the Donut output, while Python validation rules check financial consistency between invoice amounts.
+
+The result is not simply extracted data. InvoSight clearly identifies what has been validated and what still requires human attention.
 
 ### How InvoSight Works
 
@@ -71,24 +93,39 @@ flowchart LR
     E --> H[Export JSON]
 ```
 
-**1. Upload Invoice**  
-The user uploads an invoice image in PNG or JPG format.
+#### 1. Upload Invoice
 
-**2. AI Extraction**  
-The fine-tuned Donut model reads the invoice image and converts the required information into structured invoice fields.
+The user uploads an invoice image in **PNG or JPG** format.
 
-**3. Validation**  
-The extracted values are checked using document evidence and financial validation rules. The system identifies values that are valid and fields that require further review.
+#### 2. AI Extraction
 
-**4. Review & Edit**  
-The user reviews the extracted information, inspects validation feedback, and corrects values when necessary.
+The fine-tuned **Donut deep learning model** analyzes the invoice image and converts the required information into structured invoice fields.
 
-**5. Actions**  
+#### 3. Validation
+
+The extracted information is checked using two complementary validation sources:
+
+- **OCR evidence:** Tesseract OCR reads text independently from the original invoice image and provides evidence that can be compared with the Donut model output.
+- **Financial validation:** Python rules check the relationships between financial values such as subtotal, discount, tax, and total.
+
+Each field receives a validation result so the user can quickly identify values that passed the checks and fields that still need attention.
+
+#### 4. Review & Edit
+
+The user reviews the extracted values together with their validation results. If a value needs correction, it can be edited before the final result is saved or exported.
+
+#### 5. Actions
+
 After validation and review, the user can choose one of three actions:
 
-- **Save to Database:** Store the invoice, extracted values, and verification results for later access.
-- **Generate Verification Report:** Create a structured PDF report containing the verification results and review information.
-- **Export JSON:** Download the extracted invoice information as structured JSON data.
+**Save to Database**  
+Store the invoice, extracted values, and validation results for later access through the History and Database pages.
+
+**Generate Verification Report**  
+Create a structured PDF report containing invoice information, validation results, identified issues, modifications, and review information.
+
+**Export JSON**  
+Download the extracted invoice data in a structured JSON format for reuse in other workflows or systems.
 
 ---
 
@@ -96,14 +133,16 @@ After validation and review, the user can choose one of three actions:
 
 ### AI-Assisted Synthetic Invoice Generation
 
-The project uses approximately **10,000 synthetic, single-page invoice images** with corresponding structured JSON records across **20 invoice templates**. Synthetic data was used instead of real customer invoices so the team could control the invoice content, layouts, annotations, and financial relationships during model development.
+The project uses approximately **10,000 synthetic single-page invoice images** with corresponding structured JSON records across **20 invoice templates**.
+
+Synthetic invoices were used instead of real customer documents so the team could control the content, layouts, annotations, and financial relationships during model development.
 
 The dataset-generation workflow included:
 
 1. **Synthetic invoice content generation:** Fictional invoice identifiers, supplier and customer information, dates, line items, and financial values were generated and organized into structured records.
 2. **Financial consistency checks:** Python rules were used to validate the generated amounts and relationships between invoice fields.
 3. **Invoice rendering:** Pillow was used to place the generated information onto predefined invoice templates.
-4. **Image–annotation pairing:** Each rendered invoice image was paired with its corresponding structured JSON record for training and evaluation.
+4. **Image–annotation pairing:** Each rendered invoice image was paired with its corresponding structured JSON record for model training and evaluation.
 
 | Dataset Property | Description |
 |---|---|
@@ -111,7 +150,7 @@ The dataset-generation workflow included:
 | Size | Approximately 10,000 single-page invoices |
 | Layout Variations | 20 templates |
 | Content Generation | AI-assisted synthetic generation |
-| Rendering & Validation | Python and Pillow |
+| Rendering | Python and Pillow |
 | Annotations | Structured JSON |
 
 > The dataset and trained model weights are not included in this public repository.
@@ -123,27 +162,31 @@ The dataset-generation workflow included:
 | Component | Technology | Purpose |
 |---|---|---|
 | Document Extraction | Fine-tuned Donut | Extracts structured invoice information directly from images |
-| Independent OCR Evidence | Tesseract OCR | Provides additional document evidence for verification |
-| Validation Engine | Python | Checks extracted information and financial consistency |
+| Deep Learning Framework | PyTorch · Transformers | Supports the Donut model and document-understanding pipeline |
+| OCR Validation Evidence | Tesseract OCR | Provides independent textual evidence from the original invoice image |
+| Validation Engine | Python | Compares evidence and checks financial consistency |
 | Interactive Application | Streamlit | Provides upload, extraction, review, editing, and export |
 | Record Management | SQLite | Stores and retrieves saved invoice records |
 | PDF Reporting | ReportLab | Generates structured verification reports |
 
-A financial calculation that passes does **not** automatically prove that an extracted value matches the original invoice. InvoSight therefore separates **source verification** from **financial consistency checks** and surfaces fields that still require review.
+A financial calculation that passes does **not** automatically prove that an extracted value matches the original invoice.
+
+For this reason, InvoSight separates **financial consistency checks** from **source verification** and surfaces fields that still require review.
 
 ---
 
 ## ✨ Key Features
 
-- **AI-powered invoice extraction:** Extracts key invoice fields automatically from invoice images.
-- **Field-level validation:** Evaluates extracted information and clearly shows validation status for each field.
-- **Financial validation:** Checks relationships between subtotal, discount, tax, and total to detect calculation inconsistencies.
-- **Discrepancy detection:** Flags suspicious, missing, mismatched, or insufficiently verified values.
-- **Review & edit:** Allows users to inspect and correct extracted values before saving.
-- **Database storage:** Saves verified invoice records for future access and management.
-- **Invoice history:** Provides access to previously processed and saved invoices.
-- **JSON export:** Downloads structured extracted information for reuse in other workflows.
-- **Verification reports:** Generates professional PDF reports containing validation results and review information.
+- **Deep learning-based invoice extraction:** Extracts structured invoice information directly from invoice images using Donut.
+- **OCR-supported validation:** Uses Tesseract OCR as independent evidence from the source invoice.
+- **Field-level validation:** Shows validation status for each extracted field.
+- **Financial validation:** Checks relationships between subtotal, discount, tax, and total.
+- **Discrepancy detection:** Identifies suspicious, mismatched, missing, or insufficiently verified values.
+- **Review & edit:** Allows users to correct extracted values before saving.
+- **Invoice history:** Provides access to previously processed records.
+- **Database management:** Supports searching, reviewing, editing, and deleting saved invoices.
+- **JSON export:** Downloads extracted invoice information in structured form.
+- **Verification reports:** Generates professional PDF reports containing validation and review results.
 
 ---
 
@@ -165,7 +208,9 @@ A financial calculation that passes does **not** automatically prove that an ext
 
 ## 🔎 Verification & Review
 
-InvoSight does not treat extraction as the final result. Each extracted field is passed through the verification workflow so the user can see what was successfully validated and what still needs attention.
+InvoSight does not treat extraction as the final result.
+
+Each extracted field is passed through the verification workflow so the user can see which values were successfully validated and which fields still require attention.
 
 | Status | Meaning |
 |---|---|
@@ -177,9 +222,14 @@ InvoSight does not treat extraction as the final result. Each extracted field is
 
 ### Smart Validation
 
-- **Document evidence:** Tesseract OCR provides independent text evidence from the invoice image.
-- **Financial validation:** The system checks the relationship between **subtotal, discount, tax, and total**.
-- **Field-level feedback:** Validation results are shown directly beside the extracted values so the user can focus on the fields that need attention.
+**OCR Evidence**  
+Tesseract OCR provides independent textual evidence from the original invoice image. This evidence is compared with the Donut model output during validation.
+
+**Financial Validation**  
+Python rules check the relationship between **subtotal, discount, tax, and total** to detect calculation inconsistencies.
+
+**Field-Level Feedback**  
+Validation results are displayed beside the extracted values so the user can immediately focus on the fields that need attention.
 
 ---
 
@@ -187,62 +237,66 @@ InvoSight does not treat extraction as the final result. Each extracted field is
 
 ### Validation Results — See What Needs Attention
 
-The validation results table presents the extracted fields together with their current status. This makes it easy to distinguish successfully validated values from fields that require review.
+The validation results table presents the extracted fields together with their current validation status, making it easy to distinguish successfully validated values from fields that require review.
 
 <p align="center">
   <img src="InvoSight_Assets/validation-results.png" alt="InvoSight field-level validation results table" width="90%">
 </p>
 
-*Figure 3. Field-level validation results.*
+*Figure 2. Field-level validation results.*
 
 ### History — Track Previous Activity
 
-The **History** page provides access to previously processed invoices and recent saved activity, allowing users to return to earlier records without repeating the extraction workflow.
+The **History** page gives users access to previously processed and saved invoices, making it easy to return to earlier records without repeating the extraction workflow.
 
 <p align="center">
   <img src="InvoSight_Assets/history-preview.png" alt="InvoSight history page showing previously processed invoices" width="90%">
 </p>
 
-*Figure 4. Invoice processing history.*
+*Figure 3. Invoice processing history.*
 
 ### Database — Review, Edit & Manage Records
 
-The **Database** page provides a searchable view of saved invoice records. Users can inspect stored invoice information and validation status, then open the management section to edit or delete saved records when necessary.
+The **Database** page provides a searchable view of saved invoice records.
+
+Users can review saved invoices and their validation status, then use the management section to edit or delete records when needed.
 
 <p align="center">
-  <img src="InvoSight_Assets/database-overview.png" alt="InvoSight database overview with saved invoice records" width="49%">
+  <img src="InvoSight_Assets/database-overview.png" alt="InvoSight database overview showing saved invoice records" width="49%">
   <img src="InvoSight_Assets/database-edit-delete.png" alt="InvoSight database edit and delete controls" width="49%">
 </p>
 
-*Figure 5. Database overview and record-management controls.*
+*Figure 4. Database overview and record-management controls.*
 
-### Verification Report — Turn Validation into a Review-Ready Document
+### Verification Report — Clear Results for Review
 
-InvoSight can generate a structured **PDF verification report** that summarizes the invoice information, validation results, detected issues, saved corrections, and recommended review actions. The report provides a clear document for follow-up and record keeping.
+InvoSight generates a structured **PDF verification report** that summarizes the invoice information, validation results, detected issues, saved corrections, and review information.
 
 <p align="center">
   <img src="InvoSight_Assets/report-page-1.png" alt="InvoSight verification report page 1" width="49%">
   <img src="InvoSight_Assets/report-page-2.png" alt="InvoSight verification report page 2" width="49%">
 </p>
 
-*Figure 6. Two-page verification report generated by InvoSight.*
+*Figure 5. Two-page verification report generated by InvoSight.*
 
-### Settings — Configure the Application Experience
+### Settings — Application Preferences
 
-The **Settings** page provides a dedicated place for general application and display preferences.
+The **Settings** page provides a dedicated space for application and display preferences.
 
 <p align="center">
   <img src="InvoSight_Assets/settings-preview.png" alt="InvoSight settings page" width="90%">
 </p>
 
-*Figure 7. InvoSight settings interface.*
+*Figure 6. InvoSight settings interface.*
 
 ---
 
 ## 🛠️ Technology Stack
 
-**AI & Machine Learning:** Python · PyTorch · Hugging Face Transformers · Donut  
-**Document Processing:** Tesseract OCR · Pillow  
+**Programming Language:** Python  
+**Deep Learning & Document AI:** Donut · PyTorch · Transformers  
+**Validation & OCR Evidence:** Tesseract OCR · Python Validation Rules  
+**Image Processing & Synthetic Dataset Rendering:** Pillow  
 **Application:** Streamlit  
 **Data & Storage:** SQLite · JSON  
 **Reporting:** ReportLab  
@@ -263,7 +317,6 @@ InvoSight/
 ├── InvoSight_Assets/
 │   ├── logo-full.png
 │   ├── dashboard-background.png
-│   ├── project-overview.png
 │   ├── dashboard-preview.png
 │   ├── validation-results.png
 │   ├── history-preview.png
@@ -278,7 +331,7 @@ InvoSight/
 └── README.md
 ```
 
-The local virtual environment, trained model weights, dataset, and local development files are excluded from version control.
+The local virtual environment, dataset, trained model weights, and local development files are excluded from version control.
 
 ---
 
@@ -327,24 +380,35 @@ The trained model weights are not included in this repository. Place the require
 streamlit run App.py
 ```
 
-Streamlit will open the application locally, typically at `http://localhost:8501`.
+The local application is typically available at:
+
+`http://localhost:8501`
+
+### Try the Deployed Application
+
+🚀 **[Try InvoSight — Click Here](https://invosight.streamlit.app/)**
+
+Full application link:
+
+`https://invosight.streamlit.app/`
 
 ---
 
 ## 📊 Project Outcomes & Organizational Value
 
-InvoSight demonstrates an end-to-end Document AI workflow that connects **invoice extraction, source-aware verification, financial validation, human review, structured storage, and professional reporting** in one application.
+InvoSight demonstrates an end-to-end **Document AI workflow** that connects deep learning-based invoice extraction, OCR-supported source verification, financial validation, human review, structured record management, and professional reporting in one application.
 
-For financial teams, the intended value is to reduce repetitive manual entry and checking, make discrepancies easier to identify, and allow reviewers to focus their attention on invoices and fields that actually require follow-up.
+For financial teams, the intended value is to reduce repetitive manual entry and checking, make discrepancies easier to identify, and help reviewers focus their attention on invoices and fields that actually require follow-up.
 
 ---
 
-## ⚠️ Known Limitations
+## ⚠️ Current Scope & Considerations
 
-- Extraction performance can vary with invoice layout, image resolution, and document quality.
-- OCR evidence may be incomplete when text is unclear, overlapping, or difficult to recognize.
-- A financially consistent calculation does not independently prove that the extracted value matches the original document.
-- Automated validation supports human review and does **not** constitute final financial or payment approval.
+- **Generalization:** Extraction performance can vary when processing invoice layouts or visual styles that differ significantly from the data used during model development.
+- **Document quality:** Image resolution, text clarity, and document layout can affect both AI extraction and OCR-based validation evidence.
+- **Validation evidence:** Tesseract OCR is used as an independent source of textual evidence to compare against the Donut model output. Unclear or poorly recognized text may therefore require manual review.
+- **Financial consistency:** Calculation checks help identify inconsistencies between subtotal, discount, tax, and total, but a mathematically consistent result does not by itself confirm that every extracted value matches the source invoice.
+- **Human review:** InvoSight is designed to support invoice verification and highlight exceptions. Final financial approval remains a human decision.
 
 ---
 
