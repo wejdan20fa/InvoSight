@@ -1576,10 +1576,10 @@ if page == "Dashboard":
         database_error = str(exc)
     if stored is None:
         metrics = [
-            ("Saved Invoices", "invoice.svg", "kpi-blue", "—", "Stored in the database and ready to access"),
-            ("Validated", "check.svg", "kpi-green", "—", "Database verification successfully completed"),
-            ("Needs Review", "warning.svg", "kpi-amber", "—", "Database records requiring your attention"),
-            ("Modified Invoices", "edit.svg", "kpi-blue", "—", "Invoices with user-modified fields saved in the database"),
+            ("Saved Invoices", "invoice.svg", "kpi-blue", "0", "Stored in the database and ready to access"),
+            ("Validated", "check.svg", "kpi-green", "0", "Database verification successfully completed"),
+            ("Needs Review", "warning.svg", "kpi-amber", "0", "Database records requiring your attention"),
+            ("Modified Invoices", "edit.svg", "kpi-blue", "0", "Invoices with user-modified fields saved in the database"),
         ]
     else:
         try:
