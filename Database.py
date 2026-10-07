@@ -7,23 +7,17 @@ import hashlib
 import json
 import re
 import sqlite3
-import shutil
-import tempfile
 import uuid
 import os
 import streamlit as st
 from streamlit_cookies_manager import EncryptedCookieManager
-BASE_DB_PATH = Path(__file__).resolve().parent / "invosight.db"
+DB_PATH = Path(__file__).resolve().parent / "invosight.db"
 COOKIE_NAME = "invosight_visitor_id"
 COOKIE_PREFIX = "invosight/"
-def get_session_db_path():
-    """Return one private SQLite database per browser and keep it after refresh."""
-    if "session_db_path" in st.session_state:
-        return Path(st.session_state.session_db_path)
-    if not BASE_DB_PATH.is_file():
-        raise FileNotFoundError(
-            f"Database not found: {BASE_DB_PATH}. Place invosight.db beside Database.py."
-        )
+def current_visitor_id():
+    """Return a stable ID for this browser, including after page refresh."""
+    if "visitor_id" in st.session_state:
+        return st.session_state.visitor_id
     cookies = EncryptedCookieManager(
         prefix=COOKIE_PREFIX,
         password=os.environ.get(
@@ -38,36 +32,27 @@ def get_session_db_path():
         visitor_id = uuid.uuid4().hex
         cookies[COOKIE_NAME] = visitor_id
         cookies.save()
-    session_path = Path(tempfile.gettempdir()) / f"invosight_{visitor_id}.db"
-    if not session_path.is_file():
-        shutil.copy2(BASE_DB_PATH, session_path)
-        conn = sqlite3.connect(str(session_path), timeout=10)
-        try:
-            conn.execute("PRAGMA foreign_keys = OFF")
-            tables = {
-                row[0]
-                for row in conn.execute(
-                    "SELECT name FROM sqlite_master WHERE type='table'"
-                ).fetchall()
-            }
-            if "invoice_verification" in tables:
-                conn.execute("DELETE FROM invoice_verification")
-            if "invoices" in tables:
-                conn.execute("DELETE FROM invoices")
-            if "sqlite_sequence" in tables:
-                conn.execute(
-                    "DELETE FROM sqlite_sequence "
-                    "WHERE name IN ('invoices', 'invoice_verification')"
-                )
-            conn.commit()
-        except Exception:
-            conn.rollback()
-            session_path.unlink(missing_ok=True)
-            raise
-        finally:
-            conn.close()
-    st.session_state.session_db_path = str(session_path)
-    return session_path
+    st.session_state.visitor_id = visitor_id
+    return visitor_id
+class VisitorConnection(sqlite3.Connection):
+    """SQLite connection that keeps App.py's direct modified-count query visitor-scoped."""
+    visitor_id = None
+    def execute(self, sql, parameters=()):
+        normalized = " ".join(str(sql).split()).lower()
+        if (
+            normalized.startswith("select count(*) from invoice_verification")
+            and "modified_json is not null" in normalized
+        ):
+            sql = """
+                SELECT COUNT(*)
+                FROM invoice_verification AS v
+                JOIN invoices AS i ON i.id = v.invoice_id
+                WHERE i.visitor_id=?
+                  AND v.modified_json IS NOT NULL
+                  AND TRIM(v.modified_json) NOT IN ('', '[]', 'null')
+            """
+            return super().execute(sql, (self.visitor_id,))
+        return super().execute(sql, parameters)
 APP_MODEL = "Donut"
 FIELDS = (
     "invoice_number", "invoice_date", "due_date", "vendor_name",
@@ -117,9 +102,18 @@ def parse_money(value):
         return None
 @contextmanager
 def connection():
-    """Open the private SQLite database for the current Streamlit session."""
-    db_path = get_session_db_path()
-    conn = sqlite3.connect(str(db_path), timeout=10)
+    """Open the shared SQLite database while keeping app reads visitor-scoped."""
+    if not DB_PATH.is_file():
+        raise FileNotFoundError(
+            f"Database not found: {DB_PATH}. Place invosight.db beside Database.py."
+        )
+    visitor_id = current_visitor_id()
+    conn = sqlite3.connect(
+        str(DB_PATH),
+        timeout=10,
+        factory=VisitorConnection,
+    )
+    conn.visitor_id = visitor_id
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     try:
@@ -144,6 +138,13 @@ def ensure_schema():
         missing = sorted(set(COLAB_COLUMNS) - existing)
         if missing:
             raise RuntimeError(f"Missing required Colab columns: {missing}")
+        if "visitor_id" not in existing:
+            conn.execute("ALTER TABLE invoices ADD COLUMN visitor_id TEXT")
+            existing.add("visitor_id")
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_invoices_visitor_id "
+            "ON invoices(visitor_id)"
+        )
         conn.execute("""
             CREATE TABLE IF NOT EXISTS invoice_verification (
                 invoice_id INTEGER PRIMARY KEY,
@@ -196,6 +197,7 @@ def overall_invoice_status(validation, modified):
     return "Needs Review"
 def _all_records(conn, where="", params=(), limit=None):
     original = ", ".join(f'i."{name}" AS "{name}"' for name in COLAB_COLUMNS)
+    original += ', i."visitor_id" AS "visitor_id"'
     details = ", ".join(f'v."{name}" AS "{name}"' for name in DETAIL_COLUMNS)
     sql = f"""
         SELECT {original}, {details}
@@ -235,6 +237,7 @@ def save_invoice(*, final_fields, original_fields, validation,
                  modified, image_file, image_bytes, model=APP_MODEL):
     """Write the extracted values to Colab's original invoices table."""
     ensure_schema()
+    visitor_id = current_visitor_id()
     if not isinstance(final_fields, dict) or not isinstance(original_fields, dict):
         raise ValueError("Original and final fields must be dictionaries.")
     if not isinstance(validation, dict):
@@ -265,8 +268,8 @@ def save_invoice(*, final_fields, original_fields, validation,
             SELECT i.id, v.image_hash
             FROM invoices AS i
             LEFT JOIN invoice_verification AS v ON v.invoice_id = i.id
-            WHERE i.image_file=? AND i.model=?
-        """, (name, model)).fetchone()
+            WHERE i.image_file=? AND i.model=? AND i.visitor_id=?
+        """, (name, model, visitor_id)).fetchone()
         if found is not None:
             if not found["image_hash"] or found["image_hash"] != digest:
                 raise InvoiceFilenameConflict(
@@ -275,17 +278,17 @@ def save_invoice(*, final_fields, original_fields, validation,
                 )
             assignments = ", ".join(f'"{key}"=?' for key in FIELDS)
             conn.execute(
-                f"UPDATE invoices SET {assignments} WHERE id=?",
-                [*values, found["id"]],
+                f"UPDATE invoices SET {assignments} WHERE id=? AND visitor_id=?",
+                [*values, found["id"], visitor_id],
             )
             invoice_id, operation = found["id"], "updated"
         else:
-            columns = ("image_file", "model", "extracted_at", *FIELDS)
+            columns = ("visitor_id", "image_file", "model", "extracted_at", *FIELDS)
             col_sql = ", ".join(f'"{name}"' for name in columns)
             placeholders = ", ".join("?" for _ in columns)
             cursor = conn.execute(
                 f"INSERT INTO invoices ({col_sql}) VALUES ({placeholders})",
-                [name, model, stamp, *values],
+                [visitor_id, name, model, stamp, *values],
             )
             invoice_id, operation = cursor.lastrowid, "inserted"
         _save_verification(
@@ -294,12 +297,17 @@ def save_invoice(*, final_fields, original_fields, validation,
         )
     return {"id": invoice_id, "operation": operation, "status": status}
 def dashboard_stats(model=APP_MODEL):
-    """Counts only; the original fields do not establish amount units."""
+    """Counts for the current browser visitor only."""
     ensure_schema()
-    where = " WHERE i.model=?" if model is not None else ""
-    params = (model,) if model is not None else ()
+    visitor_id = current_visitor_id()
+    clauses = ["i.visitor_id=?"]
+    params = [visitor_id]
+    if model is not None:
+        clauses.append("i.model=?")
+        params.append(model)
+    where = " WHERE " + " AND ".join(clauses)
     with connection() as conn:
-        rows = _all_records(conn, where, params)
+        rows = _all_records(conn, where, tuple(params))
     validated = sum(row["validation_status"] == "Validated" for row in rows)
     review = sum(row["validation_status"] == "Needs Review" for row in rows)
     modified = 0
@@ -317,8 +325,7 @@ def dashboard_stats(model=APP_MODEL):
     }
 def _backup_before_change(conn):
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S-%f")
-    db_path = get_session_db_path()
-    backup_path = db_path.with_name(f"invosight-before-change-{stamp}.db")
+    backup_path = DB_PATH.with_name(f"invosight-before-change-{stamp}.db")
     backup = sqlite3.connect(str(backup_path))
     try:
         conn.backup(backup)
@@ -330,29 +337,46 @@ def _backup_before_change(conn):
     return backup_path
 def delete_invoice(invoice_id):
     ensure_schema()
+    visitor_id = current_visitor_id()
     with connection() as conn:
         found = conn.execute(
-            "SELECT id FROM invoices WHERE id=?", (int(invoice_id),)
+            "SELECT id FROM invoices WHERE id=? AND visitor_id=?",
+            (int(invoice_id), visitor_id),
         ).fetchone()
         if found is None:
             raise ValueError("This invoice no longer exists.")
         _backup_before_change(conn)
-        conn.execute("DELETE FROM invoices WHERE id=?", (int(invoice_id),))
+        conn.execute(
+            "DELETE FROM invoices WHERE id=? AND visitor_id=?",
+            (int(invoice_id), visitor_id),
+        )
     return True
 def delete_all_invoices(model=None):
-    """Remove all records, or only one model when explicitly requested."""
+    """Remove only the current visitor's records."""
     ensure_schema()
-    clause = " WHERE model=?" if model is not None else ""
-    params = (model,) if model is not None else ()
+    visitor_id = current_visitor_id()
+    clauses = ["visitor_id=?"]
+    params = [visitor_id]
+    if model is not None:
+        clauses.append("model=?")
+        params.append(model)
+    where = " WHERE " + " AND ".join(clauses)
     with connection() as conn:
-        count = conn.execute("SELECT COUNT(*) FROM invoices" + clause, params).fetchone()[0]
+        count = conn.execute(
+            "SELECT COUNT(*) FROM invoices" + where,
+            tuple(params),
+        ).fetchone()[0]
         if count:
             _backup_before_change(conn)
-            conn.execute("DELETE FROM invoices" + clause, params)
+            conn.execute(
+                "DELETE FROM invoices" + where,
+                tuple(params),
+            )
     return count
 def update_invoice_fields(invoice_id, updated_fields):
     """Edit stored values; affected checks must be reviewed again."""
     ensure_schema()
+    visitor_id = current_visitor_id()
     if not isinstance(updated_fields, dict) or set(updated_fields) != set(FIELDS):
         raise ValueError("All invoice fields are required.")
     cleaned = {key: clean_text(updated_fields[key]) for key in FIELDS}
@@ -365,7 +389,11 @@ def update_invoice_fields(invoice_id, updated_fields):
         if amounts[key] is not None and amounts[key] < 0:
             raise ValueError("Amounts cannot be negative.")
     with connection() as conn:
-        records = _all_records(conn, " WHERE i.id=?", (int(invoice_id),))
+        records = _all_records(
+            conn,
+            " WHERE i.id=? AND i.visitor_id=?",
+            (int(invoice_id), visitor_id),
+        )
         if not records:
             raise ValueError("This invoice no longer exists.")
         current = records[0]
@@ -416,8 +444,8 @@ def update_invoice_fields(invoice_id, updated_fields):
                 values.append(cleaned[key] or None)
         assignments = ", ".join(f'"{key}"=?' for key in FIELDS)
         conn.execute(
-            f"UPDATE invoices SET {assignments} WHERE id=?",
-            [*values, int(invoice_id)],
+            f"UPDATE invoices SET {assignments} WHERE id=? AND visitor_id=?",
+            [*values, int(invoice_id), visitor_id],
         )
         _save_verification(
             conn, int(invoice_id), original, cleaned, validation,
@@ -426,7 +454,8 @@ def update_invoice_fields(invoice_id, updated_fields):
     return {"changed": True, "fields": sorted(changes)}
 def list_invoices(limit=200, search="", status=None, model=None):
     ensure_schema()
-    clauses, params = [], []
+    visitor_id = current_visitor_id()
+    clauses, params = ["i.visitor_id = ?"], [visitor_id]
     if search:
         clauses.append(
             "(i.invoice_number LIKE ? OR i.vendor_name LIKE ? "
@@ -441,7 +470,7 @@ def list_invoices(limit=200, search="", status=None, model=None):
     if model is not None:
         clauses.append("i.model = ?")
         params.append(model)
-    where = " WHERE " + " AND ".join(clauses) if clauses else ""
+    where = " WHERE " + " AND ".join(clauses)
     with connection() as conn:
         return _all_records(conn, where, tuple(params), limit=limit)
 def _show(value):
