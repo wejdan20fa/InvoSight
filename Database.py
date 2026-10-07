@@ -7,8 +7,46 @@ import hashlib
 import json
 import re
 import sqlite3
+import shutil
+import tempfile
+import uuid
+import streamlit as st
 
-DB_PATH = Path(__file__).resolve().parent / "invosight.db"
+BASE_DB_PATH = Path(__file__).resolve().parent / "invosight.db"
+def get_session_db_path():
+    if "session_db_path" not in st.session_state:
+
+        session_id = uuid.uuid4().hex
+
+        session_path = (
+            Path(tempfile.gettempdir())
+            / f"invosight_{session_id}.db"
+        )
+
+        # Create a private database copy for this user
+        shutil.copy2(BASE_DB_PATH, session_path)
+
+        # Start this user's database empty
+        with sqlite3.connect(str(session_path)) as conn:
+
+            tables = {
+                row[0]
+                for row in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                ).fetchall()
+            }
+
+            if "invoice_verification" in tables:
+                conn.execute("DELETE FROM invoice_verification")
+
+            if "invoices" in tables:
+                conn.execute("DELETE FROM invoices")
+
+            conn.commit()
+
+        st.session_state.session_db_path = str(session_path)
+
+    return Path(st.session_state.session_db_path)
 APP_MODEL = "Donut"
 
 FIELDS = (
@@ -68,21 +106,26 @@ def parse_money(value):
 
 @contextmanager
 def connection():
-    """Open the existing local copy of the Colab SQLite file."""
+
+    DB_PATH = get_session_db_path()
+
     if not DB_PATH.is_file():
         raise FileNotFoundError(
-            f"Database not found: {DB_PATH}. Place the Colab invosight.db "
-            "beside Database.py. Do not replace an existing file without a backup."
+            f"Database not found: {DB_PATH}"
         )
+
     conn = sqlite3.connect(str(DB_PATH), timeout=10)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+
     try:
         yield conn
         conn.commit()
+
     except Exception:
         conn.rollback()
         raise
+
     finally:
         conn.close()
 
