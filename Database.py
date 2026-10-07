@@ -18,6 +18,8 @@ COOKIE_NAME = "invosight_visitor_id"
 COOKIE_PREFIX = "invosight/"
 def get_session_db_path():
     """Return one private SQLite database per browser and keep it after refresh."""
+    if "session_db_path" in st.session_state:
+        return Path(st.session_state.session_db_path)
     if not BASE_DB_PATH.is_file():
         raise FileNotFoundError(
             f"Database not found: {BASE_DB_PATH}. Place invosight.db beside Database.py."
