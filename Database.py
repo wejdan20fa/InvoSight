@@ -11,44 +11,47 @@ import shutil
 import tempfile
 import uuid
 import streamlit as st
-
 BASE_DB_PATH = Path(__file__).resolve().parent / "invosight.db"
 def get_session_db_path():
+    """Return a private, empty SQLite database for the current Streamlit session."""
     if "session_db_path" not in st.session_state:
-
+        if not BASE_DB_PATH.is_file():
+            raise FileNotFoundError(
+                f"Database not found: {BASE_DB_PATH}. Place invosight.db beside Database.py."
+            )
         session_id = uuid.uuid4().hex
-
-        session_path = (
-            Path(tempfile.gettempdir())
-            / f"invosight_{session_id}.db"
-        )
-
-        # Create a private database copy for this user
+        session_path = Path(tempfile.gettempdir()) / f"invosight_{session_id}.db"
+        # Copy the database structure, then clear its invoice data.
         shutil.copy2(BASE_DB_PATH, session_path)
-
-        # Start this user's database empty
-        with sqlite3.connect(str(session_path)) as conn:
-
+        conn = sqlite3.connect(str(session_path), timeout=10)
+        try:
+            conn.execute("PRAGMA foreign_keys = OFF")
             tables = {
                 row[0]
                 for row in conn.execute(
                     "SELECT name FROM sqlite_master WHERE type='table'"
                 ).fetchall()
             }
-
             if "invoice_verification" in tables:
                 conn.execute("DELETE FROM invoice_verification")
-
             if "invoices" in tables:
                 conn.execute("DELETE FROM invoices")
-
+            # Reset AUTOINCREMENT counters when sqlite_sequence exists.
+            if "sqlite_sequence" in tables:
+                conn.execute(
+                    "DELETE FROM sqlite_sequence "
+                    "WHERE name IN ('invoices', 'invoice_verification')"
+                )
             conn.commit()
-
+        except Exception:
+            conn.rollback()
+            session_path.unlink(missing_ok=True)
+            raise
+        finally:
+            conn.close()
         st.session_state.session_db_path = str(session_path)
-
     return Path(st.session_state.session_db_path)
 APP_MODEL = "Donut"
-
 FIELDS = (
     "invoice_number", "invoice_date", "due_date", "vendor_name",
     "customer_name", "subtotal", "discount", "tax", "total",
@@ -60,7 +63,6 @@ DETAIL_COLUMNS = (
     "modified_json", "image_hash", "updated_at",
 )
 CENT = Decimal("0.01")
-
 FIELD_NAMES = {
     "invoice_number": "Invoice Number",
     "invoice_date": "Invoice Date",
@@ -72,20 +74,14 @@ FIELD_NAMES = {
     "tax": "Tax Amount",
     "total": "Total Amount",
 }
-
-
 class InvoiceFilenameConflict(ValueError):
     """A different uploaded image already uses this filename for the model."""
-
-
 def clean_text(value):
     if isinstance(value, list):
         value = value[0] if value else None
     if isinstance(value, dict):
         value = None
     return "" if value is None else str(value).strip()
-
-
 def parse_money(value):
     """Parse an extracted amount; reject nonnumeric or excessive precision."""
     text = clean_text(value)
@@ -102,37 +98,23 @@ def parse_money(value):
         return rounded if amount == rounded else None
     except (InvalidOperation, ValueError):
         return None
-
-
 @contextmanager
 def connection():
-
-    DB_PATH = get_session_db_path()
-
-    if not DB_PATH.is_file():
-        raise FileNotFoundError(
-            f"Database not found: {DB_PATH}"
-        )
-
-    conn = sqlite3.connect(str(DB_PATH), timeout=10)
+    """Open the private SQLite database for the current Streamlit session."""
+    db_path = get_session_db_path()
+    conn = sqlite3.connect(str(db_path), timeout=10)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
-
     try:
         yield conn
         conn.commit()
-
     except Exception:
         conn.rollback()
         raise
-
     finally:
         conn.close()
-
-
 def ensure_schema():
     """Keep the original 13 Colab columns and store checks in a side table.
-
     Older 21-column local copies are accepted. Their original rows/columns are
     left intact, and existing check results are copied to the side table once.
     """
@@ -145,7 +127,6 @@ def ensure_schema():
         missing = sorted(set(COLAB_COLUMNS) - existing)
         if missing:
             raise RuntimeError(f"Missing required Colab columns: {missing}")
-
         conn.execute("""
             CREATE TABLE IF NOT EXISTS invoice_verification (
                 invoice_id INTEGER PRIMARY KEY,
@@ -168,7 +149,6 @@ def ensure_schema():
             raise RuntimeError(
                 f"The verification table is missing columns: {detail_missing}"
             )
-
         # Existing local copies may have stored these seven values in invoices.
         # Preserve them without altering the original records or side-table data.
         if set(DETAIL_COLUMNS) <= existing:
@@ -187,8 +167,6 @@ def ensure_schema():
                       WHERE v.invoice_id = i.id
                   )
             """)
-
-
 def overall_invoice_status(validation, modified):
     if modified or not isinstance(validation, dict):
         return "Needs Review"
@@ -199,8 +177,6 @@ def overall_invoice_status(validation, modified):
     ):
         return "Validated"
     return "Needs Review"
-
-
 def _all_records(conn, where="", params=(), limit=None):
     original = ", ".join(f'i."{name}" AS "{name}"' for name in COLAB_COLUMNS)
     details = ", ".join(f'v."{name}" AS "{name}"' for name in DETAIL_COLUMNS)
@@ -213,8 +189,6 @@ def _all_records(conn, where="", params=(), limit=None):
         sql += " LIMIT ?"
         params = (*params, max(1, min(int(limit), 1000)))
     return [dict(row) for row in conn.execute(sql, params).fetchall()]
-
-
 def _save_verification(conn, invoice_id, original, final, validation,
                        modified, status, digest, timestamp):
     conn.execute("""
@@ -240,8 +214,6 @@ def _save_verification(conn, invoice_id, original, final, validation,
         digest,
         timestamp,
     ))
-
-
 def save_invoice(*, final_fields, original_fields, validation,
                  modified, image_file, image_bytes, model=APP_MODEL):
     """Write the extracted values to Colab's original invoices table."""
@@ -256,7 +228,6 @@ def save_invoice(*, final_fields, original_fields, validation,
         raise ValueError("An uploaded invoice image and filename are required.")
     if not any(clean_text(final_fields.get(key)) for key in FIELDS):
         raise ValueError("Extract the invoice before saving it.")
-
     digest = hashlib.sha256(image_bytes).hexdigest()
     stamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
     final = {key: clean_text(final_fields.get(key)) for key in FIELDS}
@@ -266,14 +237,12 @@ def save_invoice(*, final_fields, original_fields, validation,
     status = overall_invoice_status(validation, modified)
     if any(final[key] and amounts[key] is None for key in MONEY_FIELDS):
         raise ValueError("One or more extracted amounts cannot be stored as numbers.")
-
     values = []
     for key in FIELDS:
         if key in MONEY_FIELDS:
             values.append(float(amounts[key]) if amounts[key] is not None else None)
         else:
             values.append(final[key] or None)
-
     with connection() as conn:
         found = conn.execute("""
             SELECT i.id, v.image_hash
@@ -307,8 +276,6 @@ def save_invoice(*, final_fields, original_fields, validation,
             modified, status, digest, stamp,
         )
     return {"id": invoice_id, "operation": operation, "status": status}
-
-
 def dashboard_stats(model=APP_MODEL):
     """Counts only; the original fields do not establish amount units."""
     ensure_schema()
@@ -331,11 +298,10 @@ def dashboard_stats(model=APP_MODEL):
         "unclassified": len(rows) - validated - review,
         "modified": modified,
     }
-
-
 def _backup_before_change(conn):
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S-%f")
-    backup_path = DB_PATH.with_name(f"invosight-before-change-{stamp}.db")
+    db_path = get_session_db_path()
+    backup_path = db_path.with_name(f"invosight-before-change-{stamp}.db")
     backup = sqlite3.connect(str(backup_path))
     try:
         conn.backup(backup)
@@ -345,8 +311,6 @@ def _backup_before_change(conn):
     finally:
         backup.close()
     return backup_path
-
-
 def delete_invoice(invoice_id):
     ensure_schema()
     with connection() as conn:
@@ -358,8 +322,6 @@ def delete_invoice(invoice_id):
         _backup_before_change(conn)
         conn.execute("DELETE FROM invoices WHERE id=?", (int(invoice_id),))
     return True
-
-
 def delete_all_invoices(model=None):
     """Remove all records, or only one model when explicitly requested."""
     ensure_schema()
@@ -371,8 +333,6 @@ def delete_all_invoices(model=None):
             _backup_before_change(conn)
             conn.execute("DELETE FROM invoices" + clause, params)
     return count
-
-
 def update_invoice_fields(invoice_id, updated_fields):
     """Edit stored values; affected checks must be reviewed again."""
     ensure_schema()
@@ -387,7 +347,6 @@ def update_invoice_fields(invoice_id, updated_fields):
             raise ValueError(f"Enter a valid amount for {FIELD_NAMES[key]}.")
         if amounts[key] is not None and amounts[key] < 0:
             raise ValueError("Amounts cannot be negative.")
-
     with connection() as conn:
         records = _all_records(conn, " WHERE i.id=?", (int(invoice_id),))
         if not records:
@@ -403,7 +362,6 @@ def update_invoice_fields(invoice_id, updated_fields):
         changes = {key for key in FIELDS if before[key] != cleaned[key]}
         if not changes:
             return {"changed": False, "fields": []}
-
         try:
             original = json.loads(current["original_json"] or "null")
         except (TypeError, ValueError):
@@ -449,8 +407,6 @@ def update_invoice_fields(invoice_id, updated_fields):
             modified, "Needs Review", current["image_hash"], stamp,
         )
     return {"changed": True, "fields": sorted(changes)}
-
-
 def list_invoices(limit=200, search="", status=None, model=None):
     ensure_schema()
     clauses, params = [], []
@@ -471,17 +427,12 @@ def list_invoices(limit=200, search="", status=None, model=None):
     where = " WHERE " + " AND ".join(clauses) if clauses else ""
     with connection() as conn:
         return _all_records(conn, where, tuple(params), limit=limit)
-
-
 def _show(value):
     return "—" if value is None or value == "" else str(value)
-
-
 def render_database_page():
     """Browse, edit and delete invoices; show only fields and their checks."""
     import streamlit as st
     from html import escape as html_escape
-
     def _status_badge(value):
         label = str(value or "Not Verified")
         status = label.strip().lower()
@@ -496,7 +447,6 @@ def render_database_page():
             f'border-radius:999px;background:{background};color:{foreground};'
             f'font-weight:600;white-space:nowrap">{html_escape(label)}</span>'
         )
-
     def _render_status_table(headers, rows, status_index):
         """Use HTML badges: Streamlit's dataframe Styler may not show cell colors."""
         header_style = (
@@ -530,14 +480,12 @@ def render_database_page():
             parts.append('</tr>')
         parts.append('</tbody></table></div>')
         st.markdown(''.join(parts), unsafe_allow_html=True)
-
     st.title("Database")
     st.caption("Extracted invoice fields and their validation results.")
     if st.session_state.pop("database_updated_notice", False):
         st.success("Invoice changes saved. Updated fields require review.")
     if st.session_state.pop("database_deleted_notice", False):
         st.success("Invoice records deleted successfully.")
-
     try:
         ensure_schema()
         search_col, status_col = st.columns([3, 1])
@@ -558,12 +506,10 @@ def render_database_page():
     except (FileNotFoundError, RuntimeError, sqlite3.Error, ValueError) as exc:
         st.error(str(exc))
         return
-
     st.caption(f"{len(records)} invoice(s) found.")
     if not records:
         st.info("No matching invoice records.")
         return
-
     st.subheader("Saved invoices")
     _render_status_table(
         ("Invoice Number", "Vendor Name", "Customer Name", "Status"),
@@ -589,7 +535,6 @@ def render_database_page():
         checks = {}
     if not isinstance(checks, dict):
         checks = {}
-
     st.subheader("Extracted fields and validation")
     _render_status_table(
         ("Field", "Extracted Value", "Validation Status"),
@@ -606,7 +551,6 @@ def render_database_page():
         ],
         status_index=2,
     )
-
     with st.expander("Edit selected invoice"):
         st.caption("Manual edits are saved and flagged for review.")
         with st.form(key=f"database_edit_form_{selected['id']}"):
@@ -630,7 +574,6 @@ def render_database_page():
                     st.info("No changes were made.")
             except (ValueError, sqlite3.Error) as exc:
                 st.error(str(exc))
-
     with st.expander("Delete invoices"):
         st.warning("A database backup is created before deletion.")
         confirm_one = st.checkbox(
@@ -647,7 +590,6 @@ def render_database_page():
                 st.rerun()
             except (ValueError, sqlite3.Error) as exc:
                 st.error(str(exc))
-
         confirmation = st.text_input(
             "Type DELETE ALL to delete all saved Donut invoices",
             key="database_delete_all_confirmation",
